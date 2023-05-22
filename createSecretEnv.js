@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
-import { SecretNetworkClient, Wallet } from "secretjs";
+import {fileURLToPath} from "url";
+import {SecretNetworkClient, Wallet} from "secretjs";
 import crypto from "crypto";
 
 const seed = process.argv.slice(2).join(" ");
@@ -18,11 +18,9 @@ const WALLET = new Wallet(seed);
 const ENTHROPY = crypto.randomBytes(64).toString("base64");
 const CONTRACT_ADDRESS = "secret1k0jntykt7e4g3y88ltc60czgjuqdy4c9e8fzek";
 const EXEC_INPUT_MSG = {
-  msg: {
-    create_viewing_key: {
-      entropy: ENTHROPY,
-    },
-  },
+  create_viewing_key: {
+    entropy: ENTHROPY,
+  }
 };
 
 const secretjs = new SecretNetworkClient({
@@ -41,13 +39,25 @@ const info = async () => {
     sender: WALLET.address,
     contract_address: CONTRACT_ADDRESS,
     code_hash: contract_hash.code_hash,
-    msg: EXEC_INPUT_MSG,
+    msg: EXEC_INPUT_MSG
+  }, {
+    gasPriceInFeeDenom: 0.0125,
+    gasLimit: 42_000
   });
 };
 
 info()
   .then((i) => {
-    return JSON.parse(Buffer.from(i.data[0]).toString("utf-8"));
+    console.log(i.rawLog)
+    if (i.data[0]) {
+      let text = Buffer.from(i.data[0]).toString("utf-8");
+      let jsonParts = text.split('{');
+      jsonParts[0]=""; // trim the stuff before the first { because the response might contain some artefacts
+      const data = JSON.parse(jsonParts.join('{'));
+      return data.create_viewing_key.key;
+    } else {
+      throw new Error(i.rawLog);
+    }
   })
   .then((key) => {
     fs.readFile(envPath, "utf8", function (err, data) {
@@ -64,8 +74,10 @@ info()
 
       var result = data.replace(replacer, (matched) => envObj[matched]);
 
+      console.log('Writing encoded mnemonic and viewing key to file .env');
       fs.writeFile(envPath, result, "utf8", function (err) {
         if (err) return console.log(err);
+        console.log('Success!');
       });
     });
   })
